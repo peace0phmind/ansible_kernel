@@ -92,8 +92,6 @@ class AnsibleKernel(Kernel, CallbackBase):
 
         This method could store the result in an instance attribute for retrieval later
         """
-        self.log.error(result._result)
-
         try:
             stream_content = {'name': 'stdout', 'text':
                 'TASK [{0}: {1}] \n{2}\n\n'.format(result._host, result._task, self.get_result_output(result._result))}
@@ -112,7 +110,6 @@ class AnsibleKernel(Kernel, CallbackBase):
             raise UnknownInput("Expected task, list of tasks, or play, got {}".format(type(orig_data)))
         if 'hosts' not in data:
             data['hosts'] = 'localhost'
-        self.log.error(data)
         return Play.load(data, self.variable_manager, self.loader)
 
     def do_execute(self, code, silent, store_history=True, user_expressions=None, allow_stdin=False):
