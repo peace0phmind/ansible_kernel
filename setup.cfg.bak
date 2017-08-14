@@ -1,0 +1,13 @@
+[metadata]
+name = ansible_kernel
+version = attr: kernel.VERSION
+author = peace0phmind
+author-email = peace0phmind@gmail.com
+home-page = https://github.com/peace0phmind/ansible_kernel
+requires = ansible, ipykernel, jupyter-client
+description = ansible kernel
+long_description = file: README.md
+keywords = ansible, jupyter
+license = BSD 3-Clause License
+classifiers =
+    Programming Language :: Python :: 3
