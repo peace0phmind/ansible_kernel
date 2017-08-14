@@ -28,7 +28,7 @@ Options = namedtuple('Options', ['connection', 'module_path', 'forks', 'become',
 # initialize needed objects
 variable_manager = VariableManager()
 loader = DataLoader()
-options = Options(connection='local', module_path='/path/to/mymodules', forks=100, become=None, become_method=None, become_user=None, check=False)
+options = Options(connection='local', module_path='/path/to/mymodules', forks=100, become=True, become_method=None, become_user='root', check=False)
 passwords = dict(vault_pass='secret')
 
 # Instantiate our ResultCallback for handling results as they come in

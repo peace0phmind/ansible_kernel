@@ -38,7 +38,8 @@ class AnsibleKernel(Kernel, CallbackBase):
     result_output_format = {
         'ansible_facts': '',
         'msg': '{msg}',
-        'cmd': 'stdout:\n{stdout}\nstderr:\n{stderr}'
+        'cmd': 'stdout:\n{stdout}\nstderr:\n{stderr}',
+        'invocation': 'changed: {changed}'
     }
 
     @property
@@ -60,15 +61,21 @@ class AnsibleKernel(Kernel, CallbackBase):
         super().__init__(*args, **kwargs)
 
         Options = namedtuple('Options',
-                             ['connection', 'module_path', 'forks', 'become', 'become_method', 'become_user', 'check'])
-        self.options = Options(connection='local', module_path='', forks=100, become=None, become_method=None,
-                               become_user=None, check=False)
+                             ['listtags', 'listtasks', 'listhosts', 'syntax', 'connection', 'module_path', 'forks',
+                              'remote_user', 'private_key_file', 'ssh_common_args', 'ssh_extra_args', 'sftp_extra_args',
+                              'scp_extra_args', 'become', 'become_method', 'become_user', 'become_pass', 'verbosity',
+                              'check'])
+        self.options = Options(listtags=False, listtasks=False, listhosts=False, syntax=False, connection='ssh',
+                               module_path=None, forks=100, remote_user=None, private_key_file=None,
+                               ssh_common_args=None, ssh_extra_args=None, sftp_extra_args=None, scp_extra_args=None,
+                               become=False, become_method='sudo', become_user='root', become_pass=None, verbosity=None,
+                               check=False)
 
         self.variable_manager = VariableManager()
         self.loader = DataLoader()
         self.inventory = Inventory(loader=self.loader, variable_manager=self.variable_manager,
                                    host_list='/usr/local/etc/ansible/hosts')
-        self.passwords = dict(vault_pass='secret')
+        self.passwords = {}
 
     def task_queue_manager(self):
         return TaskQueueManager(
