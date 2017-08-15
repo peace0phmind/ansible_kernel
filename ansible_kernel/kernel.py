@@ -77,7 +77,8 @@ class AnsibleKernel(Kernel, CallbackBase):
                                    host_list='/usr/local/etc/ansible/hosts')
         self.passwords = {}
 
-        self._options = {'hosts': 'localhost'}
+        self._options = {'hosts': {'type': str, 'val': 'localhost'},
+                         'showDetail': {'type': bool, 'val': False}}
 
     def task_queue_manager(self):
         return TaskQueueManager(
@@ -90,9 +91,10 @@ class AnsibleKernel(Kernel, CallbackBase):
         )
 
     def get_result_output(self, result):
-        for key, out_format in self.result_output_format.items():
-            if key in result:
-                return out_format.format(**result)
+        if not self._options['showDetail']['val']:
+            for key, out_format in self.result_output_format.items():
+                if key in result:
+                    return out_format.format(**result)
 
         return json.dumps(result, indent=2)
 
@@ -109,7 +111,6 @@ class AnsibleKernel(Kernel, CallbackBase):
             self.log.error(sys.exc_info()[0])
 
     def parser_comments_from_code(self, code):
-        self.log.error(code)
         if code.lstrip().find('#') == 0:
             code = code.splitlines()[0]
             m = re.findall('[^# =]+ *= *[^=]+(?: +|$)(?! *=)', code)
@@ -117,10 +118,10 @@ class AnsibleKernel(Kernel, CallbackBase):
                 for kv in m:
                     k, v = kv.split('=')
                     if k.strip() in self._options:
-                        self._options[k.strip()] = v.strip()
+                        self._options[k.strip()]['val'] = self._options[k.strip()]['type'](v.strip())
                         self.send_response(self.iopub_socket, 'stream',
                                            {'name': 'stdout',
-                                            'text': 'Set hosts to: {0}\n'.format(self._options['hosts'])})
+                                            'text': 'Set hosts to: {0}\n'.format(self._options['hosts']['val'])})
                         return True
 
     def play_from_code(self, code):
@@ -137,10 +138,10 @@ class AnsibleKernel(Kernel, CallbackBase):
             else:
                 raise UnknownInput("Expected task, list of tasks, or play, got {}".format(type(orig_data)))
         if 'hosts' not in data:
-            data['hosts'] = self._options['hosts']
+            data['hosts'] = self._options['hosts']['val']
             self.send_response(self.iopub_socket, 'stream',
                                {'name': 'stdout',
-                                'text': 'Use hosts: {0}\n'.format(self._options['hosts'])})
+                                'text': 'Use hosts: {0}\n'.format(self._options['hosts']['val'])})
 
         return Play.load(data, self.variable_manager, self.loader)
 
