@@ -2,11 +2,11 @@ import traceback
 import yaml
 import json
 import sys
+import re
 
 from ipykernel.kernelbase import Kernel
 from collections import namedtuple
 
-from ansible.cli import CLI
 from ansible.errors import AnsibleParserError
 from ansible.executor.task_queue_manager import TaskQueueManager
 from ansible.inventory import Inventory
@@ -77,6 +77,8 @@ class AnsibleKernel(Kernel, CallbackBase):
                                    host_list='/usr/local/etc/ansible/hosts')
         self.passwords = {}
 
+        self._options = {'hosts': 'localhost'}
+
     def task_queue_manager(self):
         return TaskQueueManager(
             inventory=self.inventory,
@@ -106,7 +108,23 @@ class AnsibleKernel(Kernel, CallbackBase):
         except:
             self.log.error(sys.exc_info()[0])
 
+    def parser_comments_from_code(self, code):
+        self.log.error(code)
+        if code.lstrip().find('#') == 0:
+            code = code.splitlines()[0]
+            m = re.findall('[^# =]+ *= *[^=]+(?: +|$)(?! *=)', code)
+            if m:
+                for kv in m:
+                    k, v = kv.split('=')
+                    if k.strip() in self._options:
+                        self._options[k.strip()] = v.strip()
+                        self.send_response(self.iopub_socket, 'stream',
+                                           {'name': 'stdout',
+                                            'text': 'Set hosts to: {0}\n'.format(self._options['hosts'])})
+                        return True
+
     def play_from_code(self, code):
+        parsered = self.parser_comments_from_code(code)
         """Support one task, list of tasks, or whole play without hosts."""
         data = orig_data = yaml.safe_load(code)
         if isinstance(data, dict) and 'tasks' not in data:
@@ -114,22 +132,29 @@ class AnsibleKernel(Kernel, CallbackBase):
         if isinstance(data, list):
             data = dict(tasks=data)
         if not isinstance(data, dict):
-            raise UnknownInput("Expected task, list of tasks, or play, got {}".format(type(orig_data)))
+            if parsered:
+                return
+            else:
+                raise UnknownInput("Expected task, list of tasks, or play, got {}".format(type(orig_data)))
         if 'hosts' not in data:
-            data['hosts'] = 'localhost'
+            data['hosts'] = self._options['hosts']
+            self.send_response(self.iopub_socket, 'stream',
+                               {'name': 'stdout',
+                                'text': 'Use hosts: {0}\n'.format(self._options['hosts'])})
+
         return Play.load(data, self.variable_manager, self.loader)
 
     def do_execute(self, code, silent, store_history=True, user_expressions=None, allow_stdin=False):
         try:
             ret = self.task_queue_manager().run(self.play_from_code(code))
-            self.log.error("{}".format(ret))
         except (yaml.YAMLError, AnsibleParserError) as e:
             message = ''.join(traceback.format_exception_only(type(e), e))
             stream_content = {'name': 'stderr', 'text': message}
         else:
-            stream_content = {'name': 'stdout', 'text': 'ok'}
-            # stream_content = {'name': 'stdout', 'text': ret}
-            # self.send_response(self.iopub_socket, 'stream', stream_content)
+            if ret == 0:
+                stream_content = {'name': 'stdout', 'text': 'ok'}
+            else:
+                stream_content = {'name': 'stderr', 'text': 'error: {0}'.format(ret)}
 
         if not silent:
             self.send_response(self.iopub_socket, 'stream', stream_content)
