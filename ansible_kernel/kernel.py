@@ -78,7 +78,9 @@ class AnsibleKernel(Kernel, CallbackBase):
         self.passwords = {}
 
         self._options = {'hosts': {'type': str, 'val': 'localhost'},
-                         'showDetail': {'type': bool, 'val': False}}
+                         'show_detail': {'type': lambda x: x.lower() in ['true', 't', '1', 'y', 'yes'], 'val': False},
+                         'gather_facts': {'type': str, 'val': 'yes'}
+                         }
 
     def task_queue_manager(self):
         return TaskQueueManager(
@@ -91,7 +93,7 @@ class AnsibleKernel(Kernel, CallbackBase):
         )
 
     def get_result_output(self, result):
-        if not self._options['showDetail']['val']:
+        if not self._options['show_detail']['val']:
             for key, out_format in self.result_output_format.items():
                 if key in result:
                     return out_format.format(**result)
@@ -111,18 +113,23 @@ class AnsibleKernel(Kernel, CallbackBase):
             self.log.error(sys.exc_info()[0])
 
     def parser_comments_from_code(self, code):
+        ret = False
         if code.lstrip().find('#') == 0:
             code = code.splitlines()[0]
             m = re.findall('[^# =]+ *= *[^=]+(?: +|$)(?! *=)', code)
             if m:
                 for kv in m:
                     k, v = kv.split('=')
+
                     if k.strip() in self._options:
                         self._options[k.strip()]['val'] = self._options[k.strip()]['type'](v.strip())
                         self.send_response(self.iopub_socket, 'stream',
                                            {'name': 'stdout',
-                                            'text': 'Set hosts to: {0}\n'.format(self._options['hosts']['val'])})
-                        return True
+                                            'text': 'Set {0} to: {1}\t'.format(k.strip(),
+                                                                               self._options[k.strip()]['val'])})
+                        ret = True
+                self.send_response(self.iopub_socket, 'stream', {'name': 'stdout', 'text': '\n'})
+            return ret
 
     def play_from_code(self, code):
         parsered = self.parser_comments_from_code(code)
@@ -137,11 +144,17 @@ class AnsibleKernel(Kernel, CallbackBase):
                 return
             else:
                 raise UnknownInput("Expected task, list of tasks, or play, got {}".format(type(orig_data)))
-        if 'hosts' not in data:
-            data['hosts'] = self._options['hosts']['val']
-            self.send_response(self.iopub_socket, 'stream',
-                               {'name': 'stdout',
-                                'text': 'Use hosts: {0}\n'.format(self._options['hosts']['val'])})
+
+        append_new_line = False
+        for k in ['hosts', 'gather_facts']:
+            if k not in data:
+                data[k] = self._options[k]['val']
+                self.send_response(self.iopub_socket, 'stream',
+                                   {'name': 'stdout',
+                                    'text': 'Use {0}: {1}\t'.format(k, data[k])})
+                append_new_line = True
+        if append_new_line:
+            self.send_response(self.iopub_socket, 'stream', {'name': 'stdout', 'text': '\n'})
 
         return Play.load(data, self.variable_manager, self.loader)
 
