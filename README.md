@@ -77,6 +77,12 @@ Tested under max osx 10.12 with ansible 2.3.X.
     ok
     ```
 
+5. use hosts set global default hosts
+    ```
+    # hosts=local, tf
+    ```
+
+
 Usage
 -----
 
