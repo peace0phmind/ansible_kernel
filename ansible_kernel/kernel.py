@@ -112,6 +112,15 @@ class AnsibleKernel(Kernel, CallbackBase):
         except:
             self.log.error(sys.exc_info()[0])
 
+    def v2_runner_on_failed(self, result, **kwargs):
+        try:
+            stream_content = {'name': 'stderr', 'text':
+                'TASK [{0}: {1}] \n{2}\n\n'.format(result._host, result._task, json.dumps(result._result, indent=2))}
+            self.send_response(self.iopub_socket, 'stream', stream_content)
+        except:
+            self.log.error(sys.exc_info()[0])
+
+
     def parser_comments_from_code(self, code):
         ret = False
         if code.lstrip().find('#') == 0:
